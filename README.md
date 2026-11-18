@@ -38,7 +38,7 @@ Arkadaşlarının kendi videolarını ekleme adımları için [GUIDE.md](GUIDE.m
 
 ## Yöntem
 
-Kamera hareketinin bulunduğu v1 ve v4 için tabela yüzeyindeki ORB özellikleri referans kareye karşı eşleştirilir; RANSAC homografisiyle yüzey dörtgeni kareler boyunca izlenir. Diğer videolarda sabit yüzey koordinatları kullanılır. Yazı ve logolar perspektifi düzeltilmiş tabela koordinatlarında oluşturulur, sahneye uygun alfa kompozisyonuyla geri taşınır. Eski içeriğin kaldırılması için renk/kontrast temelli maske ve OpenCV Telea inpainting kullanılır. v4 maskesi neon tüplerin kırmızı/turuncu kanallarını ve çevresindeki glow’u kapsar.
+Kamera hareketinin bulunduğu v1 ve v4 için tabela yüzeyindeki ORB özellikleri referans kareye karşı eşleştirilir; RANSAC homografisiyle yüzey dörtgeni kareler boyunca izlenir. v4 köşeleri tracker'ın referans karesi olan frame 0 üzerinde ölçülür. Diğer videolarda sabit yüzey koordinatları kullanılır. Yazı ve logolar perspektifi düzeltilmiş tabela koordinatlarında oluşturulur ve geri taşınır. v1/v2 eski içeriği renk/kontrast temelli maske ve OpenCV Telea inpainting ile temizler. v3, kadrajın kestiği iki tonlu tabela bandını yeniden kurar; v4 eski neon yazıyı tamamen kapatmak için tabela yüzünü PARKERS neon tasarımıyla yeniden çizer; v5 LED ekranı yeni reklam tasarımıyla değiştirir.
 
 Ground-truth maskesi, kompozit işlemin gerçekten değiştirdiği piksellerden oluşturulur ve bulanık kompozisyon kenarlarını da içerir. Maske dışındaki pikseller kaynak kareden alınır. Manipüle video H.264, maske FFV1 ile yazılır.
 
@@ -46,7 +46,7 @@ Ground-truth maskesi, kompozit işlemin gerçekten değiştirdiği piksellerden 
 
 v4 tabelası düz olmayan, öne çıkan kıvrımlı bir neon yüzeydir. Tek bir homografi yaklaşık yüzey eşlemesi sağlar; perspektif/geometri ve neon temizliği karşılaştırma görsellerinde ayrıca incelenmelidir. Bu nedenle bu veri kümesi araştırma kullanımından önce insan görsel kalite kontrolü gerektirir.
 
-Bu revizyon turunda v1 ve v2 yeniden üretildi; v3–v5’in mevcut video ve maske çıktıları önceki sürümden kalmadır. Beş maskenin tümü kare kare tarandı ve teknik gereksinimleri geçti; bu, v3–v5 görsellerinin yeni tasarımla üretildiği anlamına gelmez. `verify.py` bütün maskeleri kare kare tarar; bu işlem 4K FFV1 maskelerinde zaman alabilir.
+Bu revizyon turunda beş manipüle video ve maske yeniden üretildi. Beş maskenin bütün kareleri ikili değer, kare sayısı ve etkin manipülasyon aralığı açısından tarandı; tüm teknik gereksinimler geçti. `verify.py` bütün maskeleri kare kare tarar; bu işlem 4K FFV1 maskelerinde zaman alabilir.
 
 ## Araçlar
 

@@ -98,17 +98,24 @@ def design_v2(W, H):
 def design_v3(W, H):
     """Üst sarı bant 'NHAT LINH' -> 'THANH TAM'; alt kırmızı bant 'BIA HA NOI' -> 'BIA SAO MAI'."""
     overlay = np.zeros((H, W, 3), np.uint8)
-    alpha = np.zeros((H, W), np.float32)
+    # Rebuild the cropped two-tone fascia, including the old crest and the
+    # full NHAT LINH word, so no source lettering can peek through.
+    split = int(W*0.19)
+    for y in range(H):
+        shade = int(5 * (1.0 - y/max(H-1, 1)))
+        overlay[y, :split] = (52+shade, 68+shade, 82+shade)
+        overlay[y, split:] = (26+shade, 54+shade, 92+shade)
+    alpha = np.ones((H, W), np.float32)
     t1 = np.zeros((H, W, 3), np.uint8)
-    cv2.putText(t1, "THANH TAM", (int(W*0.40), int(H*0.55)), FONT_BOLD,
-                H/42.0, (20, 20, 150), max(2, int(H/16)), cv2.LINE_AA)
+    cv2.putText(t1, "THANH TAM", (int(W*0.43), int(H*0.70)), FONT_BOLD,
+                H/65.0, (24, 24, 112), max(2, int(H/25)), cv2.LINE_AA)
     m1 = (t1.sum(axis=2) > 0)
     overlay[m1] = (20, 20, 150)
     alpha[m1] = 1.0
 
     t2 = np.zeros((H, W, 3), np.uint8)
-    cv2.putText(t2, "BIA SAO MAI", (int(W*0.08), int(H*0.95)), FONT,
-                H/48.0, (255, 255, 230), max(1, int(H/26)), cv2.LINE_AA)
+    cv2.putText(t2, "BIA SAO MAI", (int(W*0.015), int(H*0.82)), FONT,
+                H/106.0, (22, 27, 46), max(1, int(H/36)), cv2.LINE_AA)
     m2 = (t2.sum(axis=2) > 0)
     overlay[m2] = (255, 255, 230)
     alpha[m2] = 1.0
@@ -116,32 +123,39 @@ def design_v3(W, H):
 
 
 def design_v4(W, H):
-    """Neon tabela 'FOSTERS' -> 'PARKERS' (neon kirmizi/turuncu parilti stilinde)."""
+    """Rebuild the FOSTERS sign face as a teal panel with a neon PARKERS tube."""
     overlay = np.zeros((H, W, 3), np.uint8)
-    alpha = np.zeros((H, W), np.float32)
-
+    yy, xx = np.mgrid[0:H, 0:W]
+    shade = (7.0 * (1.0 - yy/max(H-1, 1)) - 3.0 * xx/max(W-1, 1))
+    overlay[:, :, 0] = np.clip(100 + shade, 0, 255)
+    overlay[:, :, 1] = np.clip(135 + shade, 0, 255)
+    overlay[:, :, 2] = np.clip(75 + shade, 0, 255)
+    alpha = np.ones((H, W), np.float32)
     glow = np.zeros((H, W, 3), np.uint8)
-    cv2.putText(glow, "PARKERS", (int(W*0.01), int(H*0.76)), FONT_BOLD,
-                H/36.0, (0, 110, 235), max(4, int(H/5)), cv2.LINE_AA)
-    glow = cv2.GaussianBlur(glow, (0, 0), H/16.0)
+    text = "PARKERS"
+    unit_w = cv2.getTextSize(text, FONT, 1.0, 2)[0][0]
+    scale = min(H/38.0, (W*0.86)/unit_w)
+    baseline = int(H*0.68)
+    core_thickness = max(1, int(scale*0.32))
+    cv2.putText(glow, text, (int(W*0.07), baseline), FONT,
+                scale, (22, 25, 230), max(3, int(scale*1.25)), cv2.LINE_AA)
+    glow = cv2.GaussianBlur(glow, (0, 0), H/22.0)
     gv = glow.max(axis=2)
     gm = gv > 2
-    overlay[gm] = glow[gm]
-    alpha[gm] = np.clip(gv[gm].astype(np.float32) / 180.0, 0, 0.85)
-
+    ga = np.clip(gv.astype(np.float32) / 235.0, 0, 0.50)
+    overlay = (overlay.astype(np.float32)*(1-ga[..., None]) + glow.astype(np.float32)*ga[..., None]).astype(np.uint8)
     core = np.zeros((H, W, 3), np.uint8)
-    cv2.putText(core, "PARKERS", (int(W*0.01), int(H*0.76)), FONT_BOLD,
-                H/36.0, (30, 30, 235), max(2, int(H/12)), cv2.LINE_AA)
+    cv2.putText(core, text, (int(W*0.07), baseline), FONT,
+                scale, (105, 115, 255), core_thickness, cv2.LINE_AA)
     cm = core.sum(axis=2) > 0
     overlay[cm] = core[cm]
-    alpha[cm] = 1.0
     return overlay, alpha
 
 
 def design_v5(W, H):
     """Piccadilly LED pano: tam opak yeni reklam ('VIVA / Live Without Limits')."""
     overlay = np.zeros((H, W, 3), np.uint8)
-    overlay[:] = (90, 40, 10)
+    overlay[:] = (112, 56, 18)
     cv2.putText(overlay, "VIVA", (int(W*0.08), int(H*0.42)), FONT_BOLD,
                 W/160.0, (255, 255, 255), max(3, int(H/22)), cv2.LINE_AA)
     cv2.putText(overlay, "Live Without Limits", (int(W*0.08), int(H*0.62)), FONT,
@@ -166,18 +180,12 @@ def fosters_text_mask(front_bgr, thresh=6):
     # Capture saturated red/orange tubes and their low-saturation glow; use
     # local contrast against the teal sign face to catch dim tube segments.
     sat = hsv[:, :, 1]
-    mask = (((r - g) > thresh) | ((r > b + 10) & (sat > 18))).astype(np.uint8) * 255
+    hue = hsv[:, :, 0]
+    red_hue = ((hue <= 18) | (hue >= 165)) & (sat > 22)
+    mask = (((r - g) > thresh) | red_hue).astype(np.uint8) * 255
     k = np.ones((7, 7), np.uint8)
     mask = cv2.dilate(mask, k, iterations=7)
     mask = cv2.morphologyEx(mask, cv2.MORPH_CLOSE, k, iterations=4)
-    # The sign is a raised, bent 3D face. Include the entire front panel band;
-    # inpainting from its local teal border removes dim neon remnants too.
-    band = np.zeros_like(mask)
-    cv2.fillPoly(band, [np.int32([[0, int(front_bgr.shape[0]*0.12)],
-                                 [front_bgr.shape[1]-1, int(front_bgr.shape[0]*0.12)],
-                                 [front_bgr.shape[1]-1, int(front_bgr.shape[0]*0.89)],
-                                 [0, int(front_bgr.shape[0]*0.89)]])], 255)
-    mask = cv2.bitwise_or(mask, band)
     return mask
 
 
@@ -207,10 +215,9 @@ VIDEOS = {
     ),
     "v3": dict(
         file="3783548-hd_1920_1080_25fps.mp4",
-        quad=[(390, 0), (1200, 0), (1200, 108), (390, 108)],
-        track=False, mode="inpaint", design=design_v3, canon=(810, 108),
+        quad=[(260, -30), (1510, -30), (1510, 116), (260, 116)],
+        track=False, mode="direct", design=design_v3, canon=(1250, 146),
         label="nhatlinh_storefront",
-        bands=[(0, 70), (70, 108)],
         # Camera tilts up during frames ~250-300 revealing the sign; the quad
         # above was measured on the stable framing that holds from frame 320
         # to the end (~7.8s, > the 5s minimum). Outside this range the sign
@@ -221,13 +228,15 @@ VIDEOS = {
     "v4": dict(
         file="4606777-uhd_3840_2160_24fps.mp4",
         # Broad face rectangle extends over every FOSTERS glyph and its glow.
-        quad=[(1845, 382), (2552, 403), (2502, 609), (1818, 583)],
-        track=True, mode="inpaint", design=design_v4, canon=(705, 205),
-        label="fosters_neon", mask_fn=fosters_text_mask,
+        # Corners measured on frame 0 (the tracker reference), not on a later
+        # zoomed frame. The front face is the plane containing all neon tubes.
+        quad=[(1865, 420), (2495, 320), (2435, 615), (1860, 650)],
+        track=True, mode="direct", design=design_v4, canon=(630, 245),
+        label="fosters_neon",
     ),
     "v5": dict(
         file="5086597-uhd_3840_2160_30fps.mp4",
-        quad=[(2065, 495), (2630, 415), (2625, 915), (2060, 930)],
+        quad=[(2060, 488), (2636, 408), (2632, 948), (2057, 966)],
         track=False, mode="direct", design=design_v5, canon=(570, 435),
         label="piccadilly_led",
     ),
